@@ -6,7 +6,6 @@ import spacy
 import string
 
 
-from cProfile import label
 from collections import Counter
 
 
@@ -177,7 +176,7 @@ def date_cleaner(date_list):
                     date_set.add(date_)
     #         date_list_.append(date_set)
     #         print(sorted(date_set))
-    except:
+    except Exception:
         date_set = set()
     return sorted(date_set)
 
@@ -215,6 +214,6 @@ def add_value(doc_data, file_name, value, column="CaseNumber"):
     index = doc_data.loc[doc_data["File"] == file_name].index[0]
     try:
         doc_data.at[index, column] += value
-    except:
+    except Exception:
         doc_data.at[index, column] = value
     return doc_data

@@ -221,7 +221,7 @@ def save_images_in_cat_folders(path, extracted_info_df):
                     extracted_info_df["Path"] == root + "/" + file
                 ]["Label"].values[0]
                 shutil.move(root + "/" + file, root + "/" + target_label + "/" + file)
-            except:
+            except Exception:
                 break
 
 

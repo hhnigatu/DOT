@@ -1,5 +1,4 @@
 import itertools
-import re
 import pandas as pd
 import numpy as np
 import Levenshtein
@@ -7,42 +6,42 @@ import Levenshtein
 import file_organization_functions as fof
 
 
-class caseFiles:
+class CaseFiles:
     ids = set()
     names = set()
     dates = set()
     files = set()
 
-    def __init__(self, similarrows):
-        for case in similarrows:
+    def __init__(self, similar_rows):
+        for case in similar_rows:
             self.ids = self.ids.union(set(case["CaseNumber"]))
             self.files = self.files.union(set([case["File"]]))
             try:
                 self.names = self.names.union(set(case["Name"]))
-            except:
+            except Exception:
                 self.names = set()
             try:
                 self.dates = self.dates.union(set(case["Date"]))
-            except:
+            except Exception:
                 self.dates = set()
 
     def add_case(self, case):
         self.files = self.files.union(set([case["File"]]))
         try:
             self.ids = self.ids.union(set(case["CaseNumber"]))
-        except:
+        except Exception:
             self.ids = self.ids
         try:
             self.names = self.names.union(set(case["Name"]))
-        except:
+        except Exception:
             self.names = self.names
         try:
             self.dates = self.dates.union(set(case["Date"]))
-        except:
+        except Exception:
             self.dates = self.dates
 
 
-class document:
+class Document:
     ids = []
     dates = []
     file = ""
@@ -50,10 +49,7 @@ class document:
     edges = {}
 
     def __init__(self, files, ids, names, dates):
-        # if pd.isna(casenumbers):
         self.ids = ids
-        # else:
-        #     self.case_number=[re.sub("'", "", x) for x in casenumbers.strip('[').strip(']').split(',')]
         self.dates = dates
         self.file = files
         self.names = names
@@ -62,10 +58,8 @@ class document:
     def get_truth_val(self, entity):
         try:
             truth_val = any(pd.isna(entity))
-            # print('found non array returned ' + str(truth_val))
-        except:
+        except Exception:
             truth_val = pd.isna(entity)
-            # print('found array returned ' + str(truth_val))
         return truth_val
 
     def compare_ids(self, ids1, ids2):
@@ -78,7 +72,7 @@ class document:
 
             else:
                 return False
-        except:
+        except Exception:
             return False
 
     def connected_to_plain(self, page):
@@ -88,40 +82,25 @@ class document:
 
         if (not self.get_truth_val(self.ids)) and (not self.get_truth_val(page.ids)):
             if all(ids in self.ids for ids in page.ids):
-                # print('casenumber exact match between' + self.tag + ' ' + page.tag)
-                # page.reason.append('casenumber exact match')
                 try:
                     self.edges[page] += (1, "ids exact match")
-                except:
+                except Exception:
                     self.edges[page] = (1, "ids exact match")
-            # elif(textdistance.levenshtein.normalized_similarity(self.case_number[0], page.case_number[0])>0.8):
-            #     self.reason.append('casenumber similarity match')
-            #     #print('casenumber similarity match between' + self.tag + ' ' + page.tag)
-            #     try:
-            #         self.edges[page]+=(round(textdistance.levenshtein.normalized_similarity(self.case_number[0], page.case_number[0]),2),'casenumber similarity match')
-            #     except:
-            #         self.edges[page]=(round(textdistance.levenshtein.normalized_similarity(self.case_number[0], page.case_number[0]),2),'casenumber similarity match')
             elif (not self.get_truth_val(idslist)) and (
                 not self.get_truth_val(pageidslist)
             ):
-                # self.reason.append('casenumber formating match')
-                # print(self.case_number)
-                # print(page.case_number)
                 pairs = list(itertools.product(self.ids, page.ids))
-                # print(pairs)
                 for pair in pairs:
-                    # print(pair[0])
-                    # print(pair[1])
                     if self.compare_ids(pair[0], pair[1]):
                         print("ID formating match between" + pair[0] + " " + pair[1])
 
                         try:
                             self.edges[page] += (1, "ID formating match")
-                        except:
+                        except Exception:
                             self.edges[page] = (1, "ID formating match")
 
 
-class connections:
+class Connections:
     def __init__(self):
         self.pages = set()
         self.con = set()
@@ -141,13 +120,9 @@ class connections:
         for page in self.pages:
             if page.edges:
                 edges = set()
-                # print(page.file+ ':')
                 edges.add(page.file)
                 for key in self.edge_list[page]:
-                    # print(key.file + ":" + str(self.edge_list[page][key])+'->')
                     edges.add(key.file)
-
-                #                 print('\n')
                 connected[page.file] = edges
         return connected
 
@@ -159,10 +134,10 @@ class connections:
 
 
 def find_related_files(doc_data, lables=["File", "CaseNumber", "Name", "Date"]):
-    demo = connections()
+    demo = Connections()
     for ind in doc_data.index:
 
-        singlepage = document(
+        singlepage = Document(
             doc_data["File"][ind],
             doc_data["CaseNumber"][ind],
             doc_data["Name"][ind],
@@ -205,9 +180,8 @@ def get_similar_ids(doc_data, listOfIds, ind, ID_column="CaseNumber", t=0.95):
 
 def create_case_objects(doc_data, listOfCN, index, drop_list):
     doc_data["highlightedcase"] = np.nan
-    # listOfCN= list(set([x for y in doc_data.loc[doc_data['CaseNumber'].notnull()]['CaseNumber'].tolist() for x in y]))
     ca = get_similar_ids(doc_data, listOfCN, index)
-    case = caseFiles(fof.highlight_text(doc_data, "highlightedcase", "CaseNumber", ca))
+    case = CaseFiles(fof.highlight_text(doc_data, "highlightedcase", "CaseNumber", ca))
     for file in case.files:
         drop_list = drop_list + doc_data.index[doc_data["File"] == file].tolist()
     return case, drop_list
@@ -217,7 +191,7 @@ def mantian_connection_list(con, case):
     for k in case.files:
         try:
             del con[k]
-        except:
+        except Exception:
             pass
 
     return con

@@ -1,170 +1,111 @@
 import os
 import re
-import torch
 import hashlib
 import itertools
+import textwrap
 import numpy as np
-import cv2 as cv
 
 import cv2
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from fpdf import FPDF
-from IPython.display import IFrame, display
-
+from IPython.display import IFrame
 
 from PIL import Image
 from collections import Counter
-from PyPDF2 import PdfFileReader
+from PyPDF2 import PdfReader
 from pdf2image import convert_from_path, exceptions
+from pathlib import Path
 
 
-def getNumPages(path):
-    """
-    Paramters:
-    path: the path to the pdf file
-
-    Returns:
-    sumation: sum of the number of pages of each pdf file in the folder
-    enc: number of encrypted files that could not be accessed
-
-    """
-    sumation = 0
-    enc = 0
-    with open(path, "rb") as f:
-        pdf = PdfFileReader(f)
+def get_page_count(pdf_path: str) -> tuple[int | None, bool]:
+    """Gets the page count of a PDF located at PDF_PATH, as well as a boolean
+    representing whether the PDF is encrypted. Page count is returned as None
+    if the PDF is encrypted and cannot be accessed."""
+    with open(pdf_path, "rb") as f:
+        pdf = PdfReader(f)
         if pdf.isEncrypted:
-            enc = enc + 1
-            print(f.name)
+            return None, True
         else:
-            sumation = sumation + pdf.getNumPages()
-    return sumation, enc
+            return pdf.getNumPages(), False
 
 
-def NumPagesInFolders(dataset_path):
-    """
-    Parmater:
-    dir: the directory to the folder where the pdf files are located.
-
-    Returns:
-    info: a tuple of the sum of all the pages of the pdf files in the directory and the number of pdf files that could not be accessed becuase of encryption.
-
-    """
-    info = {}
-    info["numOfPages"] = 0
-    info["numFilesEncrpted"] = 0
-    # print('looking in ', dir)
-    for root, dirs, files in os.walk(dataset_path):
+def folder_page_count(dataset_path: str) -> tuple[int, int]:
+    """Get the number of total PDF pages and encrypted files (whose page count
+    cannot be determined) in DATASET_PATH."""
+    total_page_count = 0
+    total_encrypted_count = 0
+    for root, _, files in os.walk(dataset_path):
         for file in files:
             if file.endswith(".pdf"):
                 try:
-                    info["numOfPages"], info["numFilesEncrpted"] = (
-                        info["numOfPages"] + getNumPages(os.path.join(root, file))[0],
-                        info["numFilesEncrpted"]
-                        + getNumPages(os.path.join(root, file))[1],
-                    )
-                except:
-                    print("Could not access: ", file)
-    print("Number of pages in the folder: ", info["numOfPages"])
-    print("Number of encrypted files: ", info["numFilesEncrpted"])
-    return info.values()
+                    file_path = os.path.join(root, file)
+                    page_count, encrypted = get_page_count(file_path)
+                    if page_count is not None:
+                        total_page_count += page_count
+                    total_encrypted_count += int(encrypted)
+                except Exception:
+                    print("Could not access:", file)
+    return total_page_count, total_encrypted_count
 
 
-def PdfToImage(dataset_path, outputPath="images"):
-    """
-    Convert each page of each pdf in the given directory to jpeg format.
+def convert_pdfs_to_images(dataset_path: str, output_path: str = "images") -> None:
+    """Convert each page of each PDF in DATASET_PATH to a JPEG image, and
+    write the images to OUTPUT_PATH."""
+    if not os.path.exists(dataset_path + "/" + output_path):
+        os.mkdir(dataset_path + "/" + output_path)
 
-    Parametrs:
-    dir: the directory of the folders with the PDFs
-    outputPath: place to save the images
-
-    Return:
-    tagged: a list of tuples that have the identifying tag and the image object for each page.
-
-    """
-    if not os.path.exists(dataset_path + "/" + outputPath):
-        os.mkdir(dataset_path + "/" + outputPath)
-    # tagged=[]
-    for root, dirs, files in os.walk(dataset_path):
-        for tag, file in enumerate(files):
-            if file.endswith(".pdf"):
-                outfile = os.path.join(
-                    dataset_path,
-                    outputPath,
+    for root, _, files in os.walk(dataset_path):
+        pdfs = (file for file in files if file.endswith(".pdf"))
+        for tag, file in enumerate(pdfs):
+            outfile = (
+                Path(dataset_path)
+                / output_path
+                / (
                     "__".join(root.split("/")[len(dataset_path.split("/")) :])
                     + "__"
-                    + file,
+                    + file
                 )
-                try:
-                    if not os.path.exists(outfile):
-                        os.mkdir(outfile)
-                        convert_from_path(
-                            os.path.join(root, file),
-                            fmt="jpeg",
-                            output_folder=os.path.join(
-                                dataset_path,
-                                outputPath,
-                                "__".join(
-                                    root.split("/")[len(dataset_path.split("/")) :]
-                                )
-                                + "__"
-                                + file,
-                            ),
-                            output_file=file.rsplit(".", 1)[0] + str(tag),
-                        )
-                    else:
-                        print(outfile + " already exists")
-                    # for tag, image in enumerate(images):
-                #     #     tagged.append((file.rsplit( ".", 1 )[ 0 ]  + str(tag), file))
-                except exceptions.PDFPageCountError:
-                    print("PDF Counter could not get page numebrs: ", root + "/" + file)
-                except Exception as err:
-                    if err.errno == 36:
-                        outfile = os.path.join(dataset_path, outputPath, file)
-                        print(
-                            "File name too long. Changed from:        ",
-                            os.path.join(
-                                dataset_path,
-                                outputPath,
-                                "__".join(
-                                    root.split("/")[len(dataset_path.split("/")) :]
-                                )
-                                + "__"
-                                + file,
-                            ),
-                        )
-                        print("To:                                      ", outfile)
-
-    #             #     os.mkdir(os.path.join(root, outputPath, file +'_'))
-    #             #     images= convert_from_path(os.path.join(root, file), fmt='jpeg',  output_folder=outputPath + "/" + file , output_file=file.rsplit( ".", 1 )[ 0 ] +'_'  + str(tag))
-    #             #     for tag, image in enumerate(images):
-    #             #         tagged.append((file.rsplit( ".", 1 )[ 0 ]+'_'  + str(tag), file +'_'))
-
-    # return tagged
+            )
+            try:
+                if not outfile.exists():
+                    outfile.mkdir(parents=True, exist_ok=True)
+                    convert_from_path(
+                        Path(root) / file,
+                        fmt="jpeg",
+                        output_folder=outfile,
+                        output_file=file.rsplit(".", 1)[0] + str(tag),
+                    )
+                else:
+                    print("{} already exists".format(outfile))
+            except exceptions.PDFPageCountError:
+                print("PDF reader could not get page counts:", root + "/" + file)
+            except Exception as err:
+                if err.errno == 36:
+                    new_path = Path(dataset_path) / output_path / file
+                    print("File name too long. Changed from", outfile, "to", new_path)
+                else:
+                    raise err
 
 
-def hash_pages(dataset_path):
-    # get the path to the images from the given directiory.
-    images = []
-    global path_to_dataset
+def hash_pages(dataset_path: str):
+    global path_to_dataset  # TODO: Remove global variable
     path_to_dataset = dataset_path
 
-    hash_df = pd.DataFrame(columns=["page_path", "hashstring", "duplicate_pages"])
-    for label_folder, _, file_names in os.walk(dataset_path):
+    # get the path to the images from the given directiory.
+    images = []
 
+    hash_df = pd.DataFrame(columns=["page_path", "hashstring", "duplicate_pages"])
+    for label_folder, _, _ in os.walk(dataset_path):
         if (
             label_folder != dataset_path
             and label_folder.split("/")[-1].split(".")[-1] == "pdf"
         ):
-
             for _, _, image_names in os.walk(label_folder):
                 relative_image_names = []
                 for image_file in image_names:
                     relative_image_names.append(label_folder + "/" + image_file)
                     file = open(label_folder + "/" + image_file, "rb")
                     image = file.read()
-                    # data= {'page_path': label_folder+ "/" + image_file, 'whash': imagehash.whash(image), }
                     data = {
                         "page_path": label_folder + "/" + image_file,
                         "hashstring": str(hashlib.md5(image).hexdigest()),
@@ -173,90 +114,47 @@ def hash_pages(dataset_path):
                     hash_df = pd.concat([hash_df, new_entry])
                 images.extend(relative_image_names)
     NUM_OF_DOC = len(images)
-    # hash_df['hashstring']=hash_df['md5hash'].apply(lambda x: str(x))
+
     hash_df["file_name"] = hash_df["page_path"].apply(lambda x: x.split("/")[-2])
     hash_df.index = [i for i in range(NUM_OF_DOC)]
-    # hash_df=get_replicated(hash_df)
-    hash_df.to_csv(open(path_to_dataset + "hash_df.csv", "w"))
+
     return hash_df
-    #
 
 
 def read_from_csv(path_to_csv, columns=["duplicate_pages"]):
     df = pd.read_csv(path_to_csv)
     for column in columns:
-        # print(df[column].apply(lambda x: print(len(x)) if isinstance(x, str) else print(type(x), x)))
         df[column] = df[column].apply(
-            lambda x: re.sub("[\[\]']", "", x).split(",") if (isinstance(x, str)) else x
+            lambda x: (
+                re.sub(r"[\[\]']", "", x).split(",") if isinstance(x, str) else x
+            )
         )
     return df
 
 
 def HashPages(dataset_path, num_rep=2, doc_index=-2):
-    # get the path to the images from the given directiory.
-    images = []
+    convert_pdfs_to_images(dataset_path)
 
-    PdfToImage(dataset_path)
-    hash_df = pd.DataFrame(columns=["page_path", "hashstring", "duplicate_pages"])
-    for label_folder, _, file_names in os.walk(dataset_path):
+    hash_df = hash_pages(dataset_path)
 
-        if (
-            label_folder != dataset_path
-            and label_folder.split("/")[-1].split(".")[-1] == "pdf"
-        ):
-
-            for _, _, image_names in os.walk(label_folder):
-                relative_image_names = []
-                for image_file in image_names:
-                    relative_image_names.append(label_folder + "/" + image_file)
-                    file = open(label_folder + "/" + image_file, "rb")
-                    image = file.read()
-                    # data= {'page_path': label_folder+ "/" + image_file, 'whash': imagehash.whash(image), }
-                    data = {
-                        "page_path": label_folder + "/" + image_file,
-                        "hashstring": str(hashlib.md5(image).hexdigest()),
-                    }
-                    new_entry = pd.DataFrame(data, index=[len(hash_df) + 1])
-                    hash_df = pd.concat([hash_df, new_entry])
-                images.extend(relative_image_names)
-    NUM_OF_DOC = len(images)
-    # hash_df['hashstring']=hash_df['md5hash'].apply(lambda x: str(x))
-    hash_df["file_name"] = hash_df["page_path"].apply(lambda x: x.split("/")[-2])
-    hash_df.index = [i for i in range(NUM_OF_DOC)]
     hash_df = find_pages_with_duplicates(hash_df, num_rep)
     hash_df.to_csv(open("./hash_df.csv", "w"))
-    page_replica = create_replica_df(hash_df, doc_index)
-    global path_to_dataset
-    path_to_dataset = dataset_path
+    _ = create_replica_df(hash_df, doc_index)
 
-    # hash_df=read_from_csv(dataset_path+'hash_df.csv') #to read cached hash values from CSV. Comment out and uncomment above to hash images from scratch.
-
-    # print(hash_df)
-    # page_replica=create_replica_df(hash_df, doc_index)
-    page_replica, file_replica = collect_file_level_duplicate_info(
-        hash_df, (dataset_path)
-    )
+    _, file_replica = collect_file_level_duplicate_info(hash_df, (dataset_path))
     collected_hash = select_representative_pages(hash_df)
     collected_hash.to_csv(open("./collected_hash.csv", "w"))
-
-    # hash_df=get_replicated(hash_df, num_rep)
 
     return file_replica, collected_hash
 
 
 def find_pages_with_duplicates(hash_df, num_rep=2):
-    """
-    find the pages with the same hash value
-
-    parameters:
-    hash_df: the dataframe containing the hash values and the path of the pages.
-    num_dup: minimum number of replicas that user wants to find in the dataset. By default set to 2 so that at the very least it can detect pages that are duplicates.
-
-    """
-    assert num_rep >= 2, "Minumum number of replicas allowed==2"
+    """Annotate rows in hash_df with a column "duplicate_pages" that contains
+    the indices of pages that have the same hashstring as the current page.
+    Only rows with at least NUM_REP duplicates are annotated."""
+    assert num_rep >= 2, "It doesn't make sense to look for less than 2 duplicates."
 
     for idx, hash in zip(hash_df.index, hash_df["hashstring"]):
-
         rep = hash_df.loc[hash_df["hashstring"] == hash]
         if len(rep) >= num_rep:
             rep_index = rep.index.tolist()
@@ -276,23 +174,23 @@ def get_pages(file, replica_df, doc_index=-2):
         doc = x.split("/")[doc_index]
         try:
             page_dict[doc].append(page)
-        except:
+        except Exception:
             page_dict[doc] = [page]
     return page_dict
 
 
 def create_replica_df(hash_df, doc_index=-2):
     """
-    create a dataframe for to store the info for each page and the replica along with the file that the
-    pages are from.
+    Create a dataframe for to store the info for each page and the replica along with
+    the file that the pages are from.
 
     Parameters:
     hash_df: the dataframe with the replica pages for each page.
     doc_index: the index for the name of the file in the path of the image.
 
     Returns:
-    a dataframe with the replica for each page along with the file that contains the replica page.
-
+    a dataframe with the replica for each page along with the file that contains the
+    replica page.
     """
     replica_df = pd.DataFrame(
         columns=[
@@ -329,9 +227,8 @@ def collect_file_level_duplicate_info(hash_df, dataset_path, doc_index=-2):
 
     Returns:
     page_replica: dataframe of each of the pages with their replicas.
-    file_replica: Dataframe with the percentage of match for each of the files with files that contain replica
-    pages.
-
+    file_replica: Dataframe with the percentage of match for each of the files with
+    files that contain replica pages.
     """
     dataset_path = os.path.join(dataset_path, "images")
     page_replica = create_replica_df(hash_df, doc_index)
@@ -363,7 +260,6 @@ def collect_file_level_duplicate_info(hash_df, dataset_path, doc_index=-2):
         ]
     page_num = []
     for doc in list(file_replica["file_name"]):
-        # print(dataset_path+'/' +doc)
         page_num.append(
             len(
                 [
@@ -392,35 +288,30 @@ def get_percentage_sim(page_num, dup):
     dup: the number of duplicates found in the other file.
 
     Returns:
-    The ratio of of pages that are a match accross two files with the total number of pages in one file.
+    The ratio of of pages that are a match accross two files with the total number of
+    pages in one file.
     """
     dup_doc = {}
     for k, v in dict(dup).items():
-        # print(v)
-        # print(page_num)
-        # print()
         if v <= page_num:
             dup_doc[k] = {"ratio": v / (page_num), "totalpages": page_num, "matched": v}
-    # print(dup_doc)
     return dup_doc
 
 
 def ranges(list_page_nums):
-    for a, b in itertools.groupby(
+    for _, b in itertools.groupby(
         enumerate(list_page_nums), lambda pair: pair[1] - pair[0]
     ):
         b = list(b)
         yield b[0][1], b[-1][1]
 
 
-class document_replica_info:
+class DocumentReplicaInfo:
     def __init__(self, path, name, pagenum):
         self.path = "/home/hellina/tutorial dataset/images/" + path
         self.name = name
         self.pagenum = pagenum
         self.duplicates = []
-
-    # def create_replica()
 
     def create_replica(
         self,
@@ -430,7 +321,7 @@ class document_replica_info:
         matched_pages_range,
         matched_page_num,
     ):
-        class replica:
+        class Replica:
             def __init__(self):
                 self.replica_path = (
                     "/home/hellina/tutorial dataset/images/" + replica_path
@@ -440,7 +331,7 @@ class document_replica_info:
                 self.matched_page_num = matched_page_num
                 self.match_ratio = match_ratio
 
-        return replica()
+        return Replica()
 
     def add_replica(self, replica):
         if replica.replica_name not in [x.replica_name for x in self.duplicates]:
@@ -454,12 +345,14 @@ def threshold_by_percent(
     min_page_in_file=1,
     max_page_in_file=21,
 ):
-    assert (
-        min_page_in_file > 0
-    ), "File should have atleast 1 page. Please set min_page_in_file to a value greater than 0."
-    assert (
-        max_page_in_file <= 21
-    ), "The largest number of pages in your dataset is 21. Please set value of max_page_in_file to less than or equal to 21."
+    assert min_page_in_file > 0, (
+        "File should have atleast 1 page. Please set min_page_in_file to a value "
+        "greater than 0."
+    )
+    assert max_page_in_file <= 21, (
+        "The largest number of pages in your dataset is 21. Please set value of "
+        "max_page_in_file to less than or equal to 21."
+    )
     assert (
         min_percentage_value >= 0 and max_percentage_value >= 0
     ), "Percentage value cannot be negative."
@@ -467,7 +360,6 @@ def threshold_by_percent(
         min_percentage_value <= 100 and max_percentage_value <= 100
     ), "Percentage value cannot be exceed 100%."
     percentage_cutoff = {}
-    t = min_percentage_value / 100
     max_percentage_value = max_percentage_value / 100
     min_per = min_percentage_value / 100
     percentage_cutoff[
@@ -488,19 +380,15 @@ def threshold_by_percent(
         rep_df["numberOfPagesInFile"],
         rep_df["matched_page_num"],
     ):
-        document = document_replica_info(
+        document = DocumentReplicaInfo(
             re.sub("__", "/", doc), doc.split("__")[-1], str(page_num)
         )
-        # print(document.name)
         for replicas, perc in zip(list(rep.keys()), list(rep.values())):
             replicas = replicas.strip()
             if (
                 min_per <= round(perc["ratio"], 2)
                 and round(perc["ratio"], 2) <= max_percentage_value
             ):
-                # print('rep: ', replicas.split('__')[-1])
-                # print(round(perc['ratio'],2))
-                # print('page_nu:', file_df.loc[file_df['file_name']==replicas.split('__')[-1]]['numberOfPagesInFile'])
                 replica = document.create_replica(
                     re.sub("__", "/", replicas),
                     replicas.split("__")[-1],
@@ -519,7 +407,6 @@ def threshold_by_percent(
                     ].values[0],
                 )
                 document.add_replica(replica)
-                # print(replica.replica_name)
         percentage_cutoff[
             (
                 "Percentage Match",
@@ -530,7 +417,6 @@ def threshold_by_percent(
             )
         ].append(document)
 
-    # print(percentage_cutoff[0].duplicates[0].match_ratio)
     return percentage_cutoff
 
 
@@ -541,21 +427,23 @@ def threshold_by_number_of_matched_pages(
     min_page_in_file=1,
     max_page_in_file=21,
 ):
-    assert (
-        min_page_in_file > 0
-    ), "File should have atleast 1 page. Please set min_page_in_file to a value greater than 0."
-    assert (
-        max_page_in_file <= 21
-    ), "The largest number of pages in your dataset is 21. Please set value of max_page_in_file to less than or equal to 21."
+    assert min_page_in_file > 0, (
+        "File should have atleast 1 page. Please set min_page_in_file to a value "
+        "greater than 0."
+    )
+    assert max_page_in_file <= 21, (
+        "The largest number of pages in your dataset is 21. Please set value of "
+        "max_page_in_file to less than or equal to 21."
+    )
     assert (
         min_page_in_file_match > 0 and max_page_in_file_match > 0
     ), "Number of pages cannot be negative or zero."
-    assert (
-        min_page_in_file_match <= 21 and max_page_in_file_match <= 21
-    ), "The largest number of pages in your dataset is 21. Please set value of max_page_in_file to less than or equal to 21."
+    assert min_page_in_file_match <= 21 and max_page_in_file_match <= 21, (
+        "The largest number of pages in your dataset is 21. Please set value of "
+        "max_page_in_file to less than or equal to 21."
+    )
 
     page_num_cutoff = {}
-    t = min_page_in_file_match
     page_num_cutoff[
         (
             "Number of Matched Pages",
@@ -575,10 +463,9 @@ def threshold_by_number_of_matched_pages(
         rep_df["numberOfPagesInFile"],
         rep_df["matched_page_num"],
     ):
-        document = document_replica_info(
+        document = DocumentReplicaInfo(
             re.sub("__", "/", doc), doc.split("__")[-1], str(page_num)
         )
-        # print(document.name)
         for replicas, perc in zip(list(rep.keys()), list(rep.values())):
             replicas = replicas.strip()
             if (
@@ -603,7 +490,6 @@ def threshold_by_number_of_matched_pages(
                     ].values[0],
                 )
                 document.add_replica(replica)
-                # print(replica.replica_name)
 
         page_num_cutoff[
             (
@@ -623,124 +509,64 @@ def print_duplicate_info(list_of_replica, outputPath="./"):
     Display information about the files with exact duplicates.
 
     Parameters:
-    rep_df: dataframe with the files and their percentage of match.
-    t: minimum threshold for the percentage of match between files.
-    model: logistic regresion model to help with identifying threshold if interested in using number of matched pages as constraint.
-
+        rep_df: dataframe with the files and their percentage of match.
     """
     for conds in list_of_replica:
-        # =items.items()
         cond = list(conds.keys())[0]
         docs = list(conds.values())[0]
-        # print(cond)
-        # print(docs)
         for doc in docs:
             indexes = [i for i, x in enumerate(docs) if x.name == doc.name]
             if len(indexes) > 1:
                 for ind in indexes[1:]:
                     for rep in docs[ind].duplicates:
                         docs[indexes[0]].add_replica(rep)
-
                 del docs[ind]
+
+    csv = {
+        "doc_a_name": [],
+        "doc_a_num_pages": [],
+        "doc_a_percent_in_b": [],
+        "doc_a_pages_in_b": [],
+        "doc_a_path": [],
+        "doc_b_name": [],
+        "doc_b_num_pages": [],
+        "doc_b_percent_in_a": [],
+        "doc_b_pages_in_a": [],
+        "doc_b_path": [],
+    }
     bin_id = 0
     with open(os.path.join(outputPath, "Duplicate_Records.txt"), "w") as f:
         for conds in list_of_replica:
-            # =items.items()
             cond = list(conds.keys())[0]
             docs = list(conds.values())[0]
-            # print(cond)
-            # print(docs)
-            f.write(
-                "*********************************************Bin "
-                + str(bin_id)
-                + "********************************************\n"
+
+            output = ""
+            output += "*" * 45 + f"Bin {bin_id}" + "*" * 44 + "\n"
+            output += f"\t\t\t\t\t\tFiles with {cond[0]} between {cond[1]}-{cond[2]}\n"
+            output += (
+                f"\t\t\t\t\t\tNumber of Pages in files between {cond[3]}-{cond[4]}\n"
             )
-            print(
-                "*********************************************Bin "
-                + str(bin_id)
-                + "********************************************\n"
-            )
+
             bin_id += 1
-            # if cond[1]==0.0:
-            #     f.write("\t\t\t\t\t\t\t\t\t\tFiles with "+str(cond[0])+" Match " +cond[1] + "  " + str(cond[3]) + " and " + str(cond[4])+'\n')
-            # else:
-            f.write(
-                "\t\t\t\t\t\tFiles with "
-                + str(cond[0])
-                + " between  "
-                + str(cond[1])
-                + "-"
-                + str(cond[2])
-                + "\n"
-            )
-            f.write(
-                "\t\t\t\t\t\tNumber of Pages in files between "
-                + str(cond[3])
-                + "-"
-                + str(cond[4])
-                + "\n"
-            )
-            print(
-                "\t\t\t\t\t\tFiles with "
-                + str(cond[0])
-                + " between  "
-                + str(cond[1])
-                + "-"
-                + str(cond[2])
-                + "\n"
-            )
-            print(
-                "\t\t\t\t\t\tNumber of Pages in files between "
-                + str(cond[3])
-                + "-"
-                + str(cond[4])
-                + "\n"
-            )
-            # f.write("Number of Docs in Bin:  " + str(len(list_of_replica[bin_id][1]))+ "\n")
-            f.write("\n")
-            print("\n")
+
             for doc in docs:
-                # print(doc)
-
-                # for doc, rep, page_num, page_range in zip(rep_df['file_name'], rep_df['percentage_match'], rep_df['numberOfPagesInFile'], rep_df['matched_page_num']):
-                # f.write("Doc Path:         " + re.sub('__','/',doc.name) + "\n")
-                # f.write("Doc Name:         " + doc.path.split('__')[-1]+ "\n")
-                # f.write("Number of Pages:  " + str(doc.pagenum)+ "\n")
-                # f.write("\n")
-
-                # zip(list(rep.keys()), list(rep.values())):
                 for replica in doc.duplicates:
-                    # print(replica.replica_name)
+                    output += textwrap.dedent(
+                        f"""\
+                        {"_" * 116}
+                        Doc A
+                        \tName: {doc.name}
+                        \tNumber of Pages: {doc.pagenum}
+                        \tPercentage of pages in Doc A found in Doc B: {
+                            float(replica.match_ratio)}%
+                        \tNumber of pages in Doc A found in Doc B: {
+                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))}
+                        \tPath: {doc.path}
 
-                    # if (min_value<perc['ratio']>=t) :
-                    print(
-                        "____________________________________________________________________________________________________________________\n"
-                    )
-                    print("Doc A\n")
-                    print("\tName: " + doc.name + "\n")
-                    print("\tNumber of Pages: " + str(doc.pagenum) + "\n")
-                    print(
-                        "\tPercentage of pages in Doc A found in Doc B: "
-                        + str(float(replica.match_ratio))
-                        + "%\n"
-                    )
-                    print(
-                        "\tNumber of pages in Doc A found in Doc B: "
-                        + str(
-                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))
-                        )
-                        + "\n"
-                    )
-
-                    print("\tPath: " + doc.path + "\n")
-
-                    print("Doc B\n")
-                    print("\tName: " + replica.replica_name + "\n")
-                    print("\tNumber of Pages: " + str(replica.matched_page_num) + "\n")
-                    print(
-                        "\tPercentage of pages in Doc B found in Doc A: "
-                        + str(
-                            round(
+                        Doc B
+                        \tName: {replica.replica_name}
+                        \tNumber of Pages: {replica.matched_page_num}
+                        \tPercentage of pages in Doc B found in Doc A: {round(
                                 (
                                     (float(replica.match_ratio) / 100)
                                     * float(doc.pagenum)
@@ -748,83 +574,52 @@ def print_duplicate_info(list_of_replica, outputPath="./"):
                                 / replica.matched_page_num,
                                 2,
                             )
-                            * 100
-                        )
-                        + "%\n"
+                            * 100}%
+                        \tNumber of pages in Doc B found in Doc A: {
+                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))}
+                        \tPath: {replica.replica_path}
+                        """
                     )
-                    print(
-                        "\tNumber of pages in Doc B found in Doc A: "
-                        + str(
-                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))
-                        )
-                        + "\n"
+                    # Output the same information to a CSV so that it's accessible as a
+                    # spreadsheet
+                    csv["doc_a_name"].append(doc.name)
+                    csv["doc_a_num_pages"].append(doc.pagenum)
+                    csv["doc_a_percent_in_b"].append(float(replica.match_ratio))
+                    csv["doc_a_pages_in_b"].append(
+                        int(float(replica.match_ratio) / 100 * float(doc.pagenum))
                     )
+                    csv["doc_a_path"].append(doc.path)
+                    csv["doc_b_name"].append(replica.replica_name)
+                    csv["doc_b_num_pages"].append(replica.matched_page_num)
+                    csv["doc_b_percent_in_a"].append(
+                        round(
+                            ((float(replica.match_ratio) / 100) * float(doc.pagenum))
+                            / replica.matched_page_num,
+                            2,
+                        )
+                        * 100
+                    )
+                    csv["doc_b_pages_in_a"].append(
+                        int(float(replica.match_ratio) / 100 * float(doc.pagenum))
+                    )
+                    csv["doc_b_path"].append(replica.replica_path)
+        f.write(output)
+        print(output)
 
-                    print("\tPath: " + replica.replica_path + "\n")
-
-                    f.write(
-                        "____________________________________________________________________________________________________________________\n"
-                    )
-                    f.write("Doc A\n")
-
-                    f.write("\tName: " + doc.name + "\n")
-                    f.write("\tNumber of Pages: " + str(doc.pagenum) + "\n")
-                    f.write(
-                        "\tPercentage of pages in Doc A found in Doc B: "
-                        + str(float(replica.match_ratio))
-                        + "%\n"
-                    )
-                    f.write(
-                        "\tNumber of pages in Doc A found in Doc B: "
-                        + str(
-                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))
-                        )
-                        + "\n"
-                    )
-                    f.write("\tPath: " + doc.path + "\n")
-
-                    f.write("Doc B\n")
-                    f.write("\tName: " + replica.replica_name + "\n")
-                    f.write(
-                        "\tNumber of Pages: " + str(replica.matched_page_num) + "\n"
-                    )
-                    f.write(
-                        "\tPercentage of pages in Doc B found in Doc A: "
-                        + str(
-                            round(
-                                (
-                                    (float(replica.match_ratio) / 100)
-                                    * float(doc.pagenum)
-                                )
-                                / replica.matched_page_num,
-                                2,
-                            )
-                            * 100
-                        )
-                        + "%\n"
-                    )
-                    f.write(
-                        "\tNumber of pages in Doc B found in Doc A: "
-                        + str(
-                            int(float(replica.match_ratio) / 100 * float(doc.pagenum))
-                        )
-                        + "\n"
-                    )
-                    f.write("\tPath: " + replica.replica_path + "\n")
-                    f.write("\n")
-    f.close()
+        csv_df = pd.DataFrame(csv)
+        csv_df.to_csv(os.path.join(outputPath, "Duplicate_Records.csv"), index=False)
 
 
 def select_representative_pages(hash_df):
     """
-    Get representative image for pages that are exact matches to avoid processing the same page multiple times.
+    Get representative image for pages that are exact matches to avoid processing the
+    same page multiple times.
 
     Parameters:
     hash_df: dataframe with all the pages and their hashstrings.
 
     Returns:
     collected_hash: dataframe with one page per group of replica.
-
     """
     collected_hash = pd.DataFrame(
         hash_df.groupby("hashstring")["page_path"].apply(lambda x: "+".join(x))
@@ -839,9 +634,8 @@ def select_representative_pages(hash_df):
     return collected_hash
 
 
-def color_image(sourcepath, match=False):
-    img = cv2.imread(sourcepath)
-    # mask= cv2.imread(maskpath)
+def color_image(source_path, match=False):
+    img = cv2.imread(source_path)
     if match:
         mask = np.full_like(img, [0, 200, 0])
     else:
@@ -849,13 +643,11 @@ def color_image(sourcepath, match=False):
     mask = cv2.resize(mask, img.shape[1::-1])
 
     masked = cv2.addWeighted(img, 0.5, mask, 0.4, 0)
-    # cv2.imwrite('/home/hellina/sample/masked.jpg', masked)
     return masked
 
 
 def visualize_file_pairs(path_1, path_2, outputPath="./outputs/"):
     hash_df_path = "./hash_df.csv"
-    # print(hash_df_path)
     if not os.path.exists(
         outputPath + path_1.split(".")[0] + "_" + path_2.split(".")[0] + "A.pdf"
     ):
@@ -866,24 +658,16 @@ def visualize_file_pairs(path_1, path_2, outputPath="./outputs/"):
         path_2 = path_2.strip()
         path_2 = re.sub("/home/hellina/tutorial dataset/images/", "", path_2)
         path_2 = re.sub("/", "__", path_2)
-        # hash_df=hash_pages(dataset_path=path_to_dataset)
-        # hash_df=find_pages_with_duplicates(hash_df)
         hash_df = read_from_csv(hash_df_path)
-        # print(hash_df['file_name'])
-        # print(path_1)
         path_1pages = set(hash_df.loc[hash_df["file_name"] == path_1]["page_path"])
         path_2pages = set(hash_df.loc[hash_df["file_name"] == path_2]["page_path"])
         if not path_1pages or not path_2pages:
             print(
-                "The file path you provided does not have any PDF pages in it. Please check the path and try again."
+                "The file path you provided does not have any PDF pages in it. Please "
+                "check the path and try again."
             )
             return [], []
 
-        # print(path_1pages)
-        # print(path_2pages)
-        # print(path_1)
-        # print()
-        commonpages_1 = {}
         all_pages_1 = [
             Image.fromarray(color_image(x, False)).resize((200, 300), Image.ANTIALIAS)
             for x in sorted(path_1pages)
@@ -899,30 +683,24 @@ def visualize_file_pairs(path_1, path_2, outputPath="./outputs/"):
                         all_pages_1[change] = Image.fromarray(
                             color_image(pages, True)
                         ).resize((200, 300), Image.ANTIALIAS)
-                        # commonpages_2[pages]=color_image(pages, True)
-            except:
+            except Exception:
                 pass
-        # print(len(all_pages_1))
+        a_path = (
+            outputPath
+            + path_1.split(".")[0].split("_")[-1]
+            + "_"
+            + path_2.split(".")[0].split("_")[-1]
+            + "A.pdf"
+        )
         if len(all_pages_1) > 1:
             all_pages_1[0].save(
-                outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "A.pdf",
+                a_path,
                 save_all=True,
                 append_images=all_pages_1[1:],
             )
         else:
-            all_pages_1[0].save(
-                outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "A.pdf"
-            )
+            all_pages_1[0].save(a_path)
 
-        commonpages_2 = {}
         all_pages_2 = [
             Image.fromarray(color_image(x, False)).resize((200, 300), Image.ANTIALIAS)
             for x in sorted(path_2pages)
@@ -934,137 +712,90 @@ def visualize_file_pairs(path_1, path_2, outputPath="./outputs/"):
             try:
                 for dup in dups:
                     if dup.split("/")[-2] == path_1:
-                        # print(dup.split('/')[-2])
-                        # print(path_1)
                         change = sorted(path_2pages).index(pages)
-                        # print(change)
                         all_pages_2[change] = Image.fromarray(
                             color_image(pages, True)
                         ).resize((200, 300), Image.ANTIALIAS)
-                        # commonpages_2[pages]=color_image(pages, True)
-            except:
+            except Exception:
                 pass
-        # print(all_pages)
 
+        b_path = (
+            outputPath
+            + path_1.split(".")[0].split("_")[-1]
+            + "_"
+            + path_2.split(".")[0].split("_")[-1]
+            + "B.pdf"
+        )
         if len(all_pages_2) > 1:
             all_pages_2[0].save(
-                outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "B.pdf",
+                b_path,
                 save_all=True,
                 append_images=all_pages_2[1:],
             )
         else:
-            all_pages_2[0].save(
-                outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "B.pdf"
-            )
+            all_pages_2[0].save(b_path)
 
         with open("visualize.html", "w") as f:
+            iframe_a = (
+                f"<iframe src='{a_path}' style='width:600px;"
+                " height:500px;' frameborder='0'></iframe>"
+            )
+            iframe_b = (
+                f"<iframe src='{b_path}B.pdf' style='width:600px;"
+                " height:500px;' frameborder='0'></iframe>"
+            )
             f.write(
-                """
-            <!DOCTYPE html>
+                textwrap.dedent(
+                    f"""\
+                <!DOCTYPE html>
                 <html>
-                <body>
-
-                    <div> 
-            
-            """
-            )
-            f.write(
-                "<iframe src='"
-                + outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "A.pdf' style='width:600px; height:500px;' frameborder='0'></iframe>"
-            )
-            f.write(
-                "<iframe src='"
-                + outputPath
-                + path_1.split(".")[0].split("_")[-1]
-                + "_"
-                + path_2.split(".")[0].split("_")[-1]
-                + "B.pdf' style='width:600px; height:500px;' frameborder='0'></iframe>"
-            )
-            f.write(
-                """
-                    </div>
-                </body>
-                
-                </html>
-            """
+                    <body>
+                        <div>
+                            {iframe_a} {iframe_b}
+                        </div>
+                    </body>
+                </html>"""
+                )
             )
         f.close()
 
-    filepath = (
-        outputPath
-        + path_1.split(".")[0].split("_")[-1]
-        + "_"
-        + path_2.split(".")[0].split("_")[-1]
-        + "A.pdf"
-    )
-    filepath2 = (
-        outputPath
-        + path_1.split(".")[0].split("_")[-1]
-        + "_"
-        + path_2.split(".")[0].split("_")[-1]
-        + "B.pdf"
-    )
-    return IFrame(filepath, width=400, height=600), IFrame(
-        filepath2, width=400, height=600
-    )
-    # else:
-    #     print("")
-    # return open(path,'r').read()
+    return IFrame(a_path, width=400, height=600), IFrame(b_path, width=400, height=600)
 
 
-def show_matching_pages(path_1, path_2, duplicate_df):
+def show_matching_pages(doc1, doc2, duplicate_df):
     """
-    Plot the images of the pages that matched accross two documents.
+    Plot the images of the pages that matched across two documents.
 
     Parameters:
     doc1: name of the first document.
     doc2: name of the second document.
     duplicate_df: dataframe with the pages and duplicate information.
     """
-    # print('called with: ', doc1, doc2, duplicate_df)
     for pages, dups in zip(
-        duplicate_df.loc[duplicate_df["file_name"] == path_1]["page"],
-        duplicate_df.loc[duplicate_df["file_name"] == path_1]["duppage"],
+        duplicate_df.loc[duplicate_df["file_name"] == doc1]["page"],
+        duplicate_df.loc[duplicate_df["file_name"] == doc1]["duppage"],
     ):
         for dup in dups:
-            # print(dup)
-            if dup.split("/")[-2] == path_2:
+            if dup.split("/")[-2] == doc2:
                 img = Image.open(pages).convert("RGB")
-
                 img2 = Image.open(dup).convert("RGB")
-
-                plt.subplot(121), plt.imshow(img)
-                plt.subplot(122), plt.imshow(img2)
-
+                plt.subplot(1, 2, 1)
+                plt.imshow(img)
+                plt.subplot(1, 2, 2)
+                plt.imshow(img2)
                 plt.show()
-    # print('called with: ', doc1, doc2, duplicate_df)
-    # return True
 
 
 def show_unique_pages_in_file(path_1, path_2):
     """
-    Plot the images of the pages that did not match accross two documents.
+    Plot the images of the pages that did not match across two documents.
 
     Parameters:
     path_1: name of the first document.
     path_2: name of the second document.
     hash_df: dataframe with all the pages.
-
-
     """
-    hash_df = hash_pages(dataset_path=path_to_dataset)
+    hash_df = hash_pages(dataset_path=path_to_dataset)  # TODO: Remove global variable
     hash_df = find_pages_with_duplicates(hash_df)
     path_1pages = set(hash_df.loc[hash_df["file_name"] == path_1]["page_path"])
     commonpages = []
@@ -1076,21 +807,19 @@ def show_unique_pages_in_file(path_1, path_2):
             for dup in dups:
                 if dup.split("/")[-2] == path_2:
                     commonpages.append(pages)
-        except:
+        except Exception:
             print("no duplicates found")
 
     unique_pages = [page for page in path_1pages if page not in commonpages]
+
     print(
-        "There are "
-        + str(len(unique_pages))
-        + " unique pages in "
-        + path_1
-        + " that are not found in "
-        + path_2
+        f"There are {len(unique_pages)} unique pages in {path_1} that are"
+        + f" not found in {path_2}"
     )
+
     for page in unique_pages:
         img = Image.open(page).convert("RGB")
         print(page.split("/")[-1])
-        plt.subplot(121), plt.imshow(img)
+        plt.subplot(1, 2, 1)
+        plt.imshow(img)
         plt.show()
-    # return False

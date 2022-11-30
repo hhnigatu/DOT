@@ -10,8 +10,9 @@ import pandas as pd
 
 def set_entity_breakdown(df, column, entities):
     """
-    Set the values of a column if the entities in the list appear within the text of each page. In this function, we
-    breakdown the entitiey into separate 'words' based on space.
+    Set the values of a column if the entities in the list appear within the text of
+    each page. In this function, we break down the entities into separate
+    "words" based on space.
 
     Parameters:
     df: the dataframe that has all the information of the pages.
@@ -22,7 +23,6 @@ def set_entity_breakdown(df, column, entities):
     collect_val = []
     for ind in tqdm.tqdm(df.index):
         entityintext = set()
-        # print(entityintext)
         for entity in entities:
             for i, val in enumerate(
                 x
@@ -49,10 +49,6 @@ def set_entity_breakdown(df, column, entities):
                 collect_val.append(entity)
             else:
                 collect_val.append(None)
-                # try:
-                #     df.at[ind,column].append(entity)
-                # except:
-                #     df.at[ind,column]=[entity]
     df.insert(2, column, collect_val, allow_duplicates=False)
     return df
 
@@ -62,8 +58,6 @@ def set_entity_whole(df, column, entities):
     for ind in tqdm.tqdm(df.index):
         entityintext = set()
         for entity in entities:
-            # print()
-            # print( df['Text'][ind].lower())
             if re.search(
                 re.sub("[%s]" % re.escape(string.punctuation), " ", entity),
                 re.sub(
@@ -77,12 +71,9 @@ def set_entity_whole(df, column, entities):
                     "[%s]" % re.escape(string.punctuation), " ", df["Text"][ind].lower()
                 ),
             ):
-                # print('found')
                 entityintext.add(entity)
         if len(entityintext) > 0:
-            # print(entityintext)
             collect_val.append(list(entityintext))
-            # df.at[ind,column]=list(entityintext)
         else:
             collect_val.append(None)
     df.insert(2, column, collect_val, allow_duplicates=False)
@@ -90,8 +81,8 @@ def set_entity_whole(df, column, entities):
 
 
 def set_entities_doc(page_df, doc_df, column):
-    """
-    Set the values of the names, case numbers and dates found in each document from the values of each page.
+    """Set the values of the names, case numbers and dates found in each document from
+    the values of each page.
 
     Parameters:
     page_df: dataframe that has page level data
@@ -106,7 +97,7 @@ def set_entities_doc(page_df, doc_df, column):
             try:
                 for entity in entityList:
                     entities.add(entity)
-            except:
+            except Exception:
                 continue
         if entities:
             doc_df.at[ind, column] = sorted(entities)
@@ -120,16 +111,7 @@ def set_text_doc(page_df, doc_df, column):
             page_df.loc[page_df["File"] == doc_df["File"][ind]][column]
         ):
             text += textVal
-
-        #         print(text)
         doc_df.at[ind, column] = text
-    #             try:
-    #                 text+=page_df['Text'][ind]
-    #             except:
-
-    #                     continue
-    #         if entities:
-    #             doc_df.at[ind, column]=sorted(entities)
     return doc_df
 
 
@@ -228,9 +210,8 @@ def move_images_to_cat(
                     extracted_info_df["Path"] == root + "/" + file
                 ]["label"].values[0]
                 shutil.move(root + "/" + file, root + "/" + target_label + "/" + file)
-            except:
+            except Exception:
                 print(root + "/" + file)
-                # print(extracted_info_df.loc[extracted_info_df['Path']==root+'/'+file]['label'])
 
 
 def read_from_csv(
@@ -246,18 +227,9 @@ def read_from_csv(
             doc_data.loc[doc_data[label].notnull()][label],
         ):
             entity = val.split("', '")
-            entity = [re.sub("[\[\]']", "", x) for x in entity]
+            entity = [re.sub(r"[\[\]']", "", x) for x in entity]
             doc_data.at[idx, label] = entity
     return doc_data
-
-
-def get_eligible_rows(casefile, data, t=0.9):
-    idx = []
-    for k, v in data.items():
-        if v[casefile] == max(v.values()) and v[casefile] >= t and v[casefile] != 1:
-            print(v[casefile])
-            idx.append(k)
-    return idx
 
 
 def get_page_num(page_df, doc_df):
@@ -280,7 +252,7 @@ def get_page_num(page_df, doc_df):
                 ".jpg", "", last_page
             ).lstrip("0")
             page_doc[file] = first_page + "-" + last_page
-        except:
+        except Exception:
             print(file)
         # page_df.loc[indexes,'PageRange']=[first_page + '-' +last_page]*len(indexes)
     return page_doc
@@ -296,9 +268,6 @@ def set_doc_data(extracted_info_df):
     doc_data = pd.DataFrame(columns=columns)
 
     doc_data["File"] = list(set(extracted_info_df.File))
-    # if new:
-    #     doc_data['OrignalFile']=list(set(extracted_info_df.File))
-    # print(doc_data.loc[doc_data['OrignalFile']=='Correspondence and duplicate bulk production__Matthew Meadows - Stockton Police Release 11172020.pdf'])
     for column in doc_data.columns:
         if column not in ["File", "OrignalFile"]:
             set_entities_doc(extracted_info_df, doc_data, column)
@@ -348,11 +317,10 @@ def name_and_date_match(doc_data, caseList, ID_column="CaseNumber"):
     return data
 
 
-def get_eligible_rows(casefile, data, t=1.0):
+def get_eligible_rows(casefile, data, t=0.9):
     idx = []
     for k, v in data.items():
-        # and v[casefile]!=1:
-        if v[casefile] == max(v.values()) and v[casefile] > t:
+        if v[casefile] == max(v.values()) and v[casefile] >= t and v[casefile] != 1:
             print(v[casefile])
             idx.append(k)
     return idx
@@ -389,14 +357,9 @@ def output_organized_cases(caseList):
             file_name = ".".join(file_name)
             print("     PATH: ", file_name)
             print("     FILE NAME: ", file_name.split("/")[-1])
-            print("     PAGE RANGE: ", page_range)
-            print()
+            print("     PAGE RANGE: ", page_range, end="\n")
         i += 1
-        print(
-            "******************************************************************************************"
-        )
-        print()
-        print()
+        print("*" * 90, end="\n\n")
 
 
 def split_by_label(extracted_info_df, label="form"):
