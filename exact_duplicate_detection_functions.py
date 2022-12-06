@@ -144,7 +144,6 @@ def hash_pages(dataset_path):
     hash_df.index=[i for i in range(NUM_OF_DOC)]
     # hash_df=get_replicated(hash_df)
     hash_df.to_csv(open(path_to_dataset+'__hash_df.csv', 'w'))
-    print('Now saving to hash_df.csv 1')
     return hash_df
     # 
 
@@ -158,7 +157,7 @@ def read_from_csv(path_to_csv, columns=["duplicate_pages"]):
         )
     return df
 
-def read_from_collected_hash(path_to_csv, columns=['duplicate_pages']):
+def read_from_collected_hash(path_to_csv , columns=['number_of_duplicates']):
     '''
     read_from_csv() for collected_hash.csv
     '''
@@ -172,16 +171,12 @@ def read_from_collected_hash(path_to_csv, columns=['duplicate_pages']):
     return df.drop(columns = ['hashstring'])
 
 
-def read_from_file_replica(path_to_csv, columns=['duplicate_pages']):
+def read_from_file_replica(path_to_csv, file_path):
     '''
     read_from_csv() for file_replica.csv
     '''
-    df=pd.read_csv(path_to_csv, index_col = False)
-    for column in columns:
-        df[column]=df[column].apply(lambda x: re.sub("[\[\]\']",'', x).split(',') if (isinstance(x, str)) else x)
-    #df[0] = df[0].apply(eval, 1, 2, 3)
-
-    return df.drop(columns = ['Unnamed: 0'])
+    #file_path.split('')
+    return collect_file_level_duplicate_info(read_from_csv(path_to_csv), file_path)
 
 
 def HashPages(dataset_path, num_rep=2, doc_index=-2):
@@ -211,8 +206,7 @@ def HashPages(dataset_path, num_rep=2, doc_index=-2):
         hash_df.index=[i for i in range(NUM_OF_DOC)]
         hash_df=find_pages_with_duplicates(hash_df, num_rep)
         hash_df.to_csv(open('./hash_df.csv', 'w'))
-        print('Now saving to hash_df.csv 2')
-        page_replica=create_replica_df(hash_df, doc_index)
+       #=create_replica_df(hash_df, doc_index)
         global path_to_dataset
         path_to_dataset=dataset_path
 
@@ -221,11 +215,10 @@ def HashPages(dataset_path, num_rep=2, doc_index=-2):
     
         # print(hash_df)
         # page_replica=create_replica_df(hash_df, doc_index)
-        page_replica, file_replica=collect_file_level_duplicate_info(hash_df, (dataset_path))
+        file_replica=collect_file_level_duplicate_info(hash_df, (dataset_path))
         collected_hash= select_representative_pages(hash_df)
         collected_hash.to_csv(open('./collected_hash.csv','w'))
-        file_replica.to_csv(open('./file_replica.csv', 'w'))
-        print('Now saving to collected_hash.csv 3')
+       # file_replica.to_csv(open('./file_replica.csv', 'w'))
 
 
         # hash_df=get_replicated(hash_df, num_rep)
@@ -324,7 +317,7 @@ def collect_file_level_duplicate_info(hash_df, dataset_path, doc_index=-2):
     for id, rep in zip(file_replica.index, file_replica['files_with_duplicate_page']):
 
         file_replica.at[id, 'percentage_match']=get_percentage_sim(file_replica['numberOfPagesInFile'][id], rep)
-    return  page_replica, file_replica
+    return file_replica
 
 
 def get_percentage_sim(page_num, dup):
@@ -768,43 +761,4 @@ def create_csv(dataset_path, csvPath = 'csv'):
         shutil.copy2('/Users/heatherwei/Desktop/DOT-master/' + file,  outfile + '/' + file)
         rename = dataset_path.split('/')[-1] + '__' + file
         os.rename(outfile + '/' + file, outfile + '/' + rename)
-
-    '''
-    #questions: when do we call this? if I call hashpages with one dataset, but then create_csv with another dataset, saves wrong csv
-    shutil.copy2('/Users/heatherwei/Desktop/DOT-master/hash_df.csv',  outfile + '/' + 'hash_df.csv')
-    rename = dataset_path.split('/')[-1] + '__hash_df.csv'
-    os.rename(outfile + '/hash_df.csv', outfile + '/' + rename)
-    '''
-
-    '''
-    hash_pages(dataset_path)
-
-    csv_files = []
-
-    path_before = dataset_path.split('/')[:-1]
-    csv_saved_path = ""
-    for i in path_before:
-        csv_saved_path +=  '/' + i
-    csv_saved_path = csv_saved_path [1:]
-
-    for root, dirs, files in os.walk(csv_saved_path):
-        for tag, file in enumerate(files):
-            if file.endswith('.csv'):
-                csv_files.append(file)
-    
-    current_csv = csv_files[0]
-    shutil.move(csv_saved_path + '/' + current_csv, outfile + '/' + current_csv)
-    '''
-    #there are two files
-    # CREATE CSV FILE:
-    # run HashPages() on one file, will change csv file, save this file in the datapath
-    # run HashPages() on another file, will change csv file, save this file in the datapath in a folder called csv
-    # READ CSV FILE:
-    # go into datapath/csv and read csv file here
-
-
-
-
-
-   
     
