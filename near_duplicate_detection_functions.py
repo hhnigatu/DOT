@@ -9,9 +9,10 @@ import matplotlib.pyplot as plt
 import cv2 as cv
 import tqdm
 import itertools
-from exact_duplicate_functions import (
-    read_from_csv,
+from exact_duplicate_detection_functions import (
+    read_from_csv, HashPages
 )
+from model_functions import set_up_model, prepare_data_for_model, label_and_vectorize, update_dataframe
 from math import ceil
 import faiss
 
@@ -163,9 +164,49 @@ def set_correlation_threshold(
     return pd.concat(correlation_cutoff)
 
 
-def ClassifyAndGetPairCorrelation(dataset_path, list_of_page_type):
-    correlation_df = read_from_csv("./correlation_df.csv", [])
-    correlation_df = correlation_df.drop(columns=["Unnamed: 0"])
+def ClassifyAndGetPairCorrelation(dataset_path, list_of_page_type, from_backup=False):
+    if not from_backup:
+        print('Hashing pages....')
+        _, reduced_df=HashPages(dataset_path)
+        
+        data, encoded_data= prepare_data_for_model(reduced_df)
+
+
+        # set up the model for running the data
+        model=set_up_model()
+
+        print('Labeling page types...')
+        vector_represtenations, page_types=label_and_vectorize(encoded_data, model)
+
+        reduced_df=update_dataframe(reduced_df, page_types)
+        print('Updated and saved dataframe with page labels...')
+
+        correlation_df=[]
+        for type_of_page in list_of_page_type:
+            page_type_indexes, page_type_vectors=get_indexes_and_vectors_per_cat(page_types, type_of_page, vector_represtenations)
+            if len(page_type_indexes)>0:
+                print('Clustering pages and calculating correlation between page pairs...')
+                #print(page_type_vectors)
+                D, I= cluster_kmeans(page_type_vectors)
+                correlation_df.append(get_correlation(page_type_indexes, encoded_data,  I, data, type_of_page))
+            else:
+                print('There are no pages that have '+ type_of_page+' type.')
+        correlation_df= pd.concat(correlation_df)
+        correlation_df.to_csv(open('./correlation_df.csv','w'))
+        
+        page_number_info={}
+        files=[]
+        pages=[]
+        for dir in os.listdir(os.path.join(dataset_path,'images')):
+            files.append(dir)
+            pages.append(len(os.listdir(os.path.join(dataset_path,'images', dir))))
+        page_number_info['file_name']=files
+        page_number_info['number_of_pages']=pages
+        page_info_df=pd.DataFrame.from_dict(page_number_info)
+        page_info_df.to_csv(open('page_info.csv','w'))
+    else: 
+        correlation_df=read_from_csv(os.path.join(dataset_path,'correlation_df.csv'), [])
+        correlation_df=correlation_df.drop(columns=['Unnamed: 0'])
     return correlation_df.loc[correlation_df["correlation_value"] > 0.0].loc[
         correlation_df["correlation_value"] < 1.0
     ]
