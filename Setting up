@@ -1,0 +1,4 @@
+Installing packages:
+1. open terminal and run the following command: pip install -r requierments.txt
+2. To install Detectron2 follow instructions here: https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md
+Python version 3.10 and above.
