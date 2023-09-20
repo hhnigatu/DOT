@@ -308,7 +308,7 @@ def ranges(list_page_nums):
 
 class DocumentReplicaInfo:
     def __init__(self, path, name, pagenum):
-        self.path = "/home/hellina/tutorial dataset/images/" + path
+        self.path =  path
         self.name = name
         self.pagenum = pagenum
         self.duplicates = []
@@ -324,7 +324,7 @@ class DocumentReplicaInfo:
         class Replica:
             def __init__(self):
                 self.replica_path = (
-                    "/home/hellina/tutorial dataset/images/" + replica_path
+                     replica_path
                 )
                 self.replica_name = replica_name
                 self.matched_pages_range = matched_pages_range
@@ -652,11 +652,10 @@ def visualize_file_pairs(path_1, path_2, outputPath="./outputs/"):
         outputPath + path_1.split(".")[0] + "_" + path_2.split(".")[0] + "A.pdf"
     ):
         path_1 = path_1.strip()
-        path_1 = re.sub("/home/hellina/tutorial dataset/images/", "", path_1)
         path_1 = re.sub("/", "__", path_1)
+        print(path_1)
 
         path_2 = path_2.strip()
-        path_2 = re.sub("/home/hellina/tutorial dataset/images/", "", path_2)
         path_2 = re.sub("/", "__", path_2)
         hash_df = read_from_csv(hash_df_path)
         path_1pages = set(hash_df.loc[hash_df["file_name"] == path_1]["page_path"])
