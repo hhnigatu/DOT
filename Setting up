@@ -1,4 +1,5 @@
 Installing packages:
 1. open terminal and run the following command: pip install -r requierments.txt
-2. To install Detectron2 follow instructions here: https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md
+2. then, run the following command: python3 -m spacy download en_core_web_sm
+3. To install Detectron2 follow the instructions here: https://github.com/facebookresearch/detectron2/blob/main/INSTALL.md
 Python version 3.10 and above.
