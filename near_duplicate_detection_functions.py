@@ -165,6 +165,9 @@ def set_correlation_threshold(
 
 
 def ClassifyAndGetPairCorrelation(dataset_path, list_of_page_type, from_backup=False):
+    labels=["image", "other", "narrative", "form", "handwriting", "interview"],
+    id2label = {v: k for v, k in enumerate(labels)}
+    # label2id = {k: v for v, k in enumerate(labels)}
     if not from_backup:
         print('Hashing pages....')
         _, reduced_df=HashPages(dataset_path)
@@ -179,6 +182,7 @@ def ClassifyAndGetPairCorrelation(dataset_path, list_of_page_type, from_backup=F
         vector_represtenations, page_types=label_and_vectorize(encoded_data, model)
 
         reduced_df=update_dataframe(reduced_df, page_types)
+        reduced_df.to_csv(open("./page_labeled.csv", 'w'))
         print('Updated and saved dataframe with page labels...')
 
         correlation_df=[]

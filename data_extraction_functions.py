@@ -7,6 +7,7 @@ import string
 
 
 from collections import Counter
+from transformers import LayoutLMv2FeatureExtractor, LayoutLMv2TokenizerFast, LayoutLMv2Processor
 
 
 def clean_case_number(text):
@@ -51,7 +52,10 @@ def get_text_from_bbox(bbox, bbox_list, text):
     return clean_case_number(text_final)
 
 
-def extract_with_bbox(bbox, encoded_dataset, processor, lable_df):
+def extract_with_bbox(bbox, encoded_dataset, lable_df):
+    feature_extractor = LayoutLMv2FeatureExtractor()
+    tokenizer = LayoutLMv2TokenizerFast.from_pretrained("microsoft/layoutlmv2-base-uncased")
+    processor = LayoutLMv2Processor(feature_extractor, tokenizer) 
     possible_entities = []
     for idx in lable_df.index:
         possible_entities.append(
@@ -71,7 +75,7 @@ def extract_with_bbox(bbox, encoded_dataset, processor, lable_df):
 
 def get_named_entity(data_frame, entity_type, label="narrative"):
     entity = []
-    df_text = data_frame.loc[data_frame["label"] == label]["Text"]
+    df_text = data_frame.loc[data_frame["Label"] == label]["Text"]
 
     nlp = spacy.load("en_core_web_sm")
     for ind in tqdm.tqdm(df_text.index):

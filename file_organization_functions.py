@@ -92,7 +92,7 @@ def set_entities_doc(page_df, doc_df, column):
     for ind in doc_df.index:
         entities = set()
         for entityList in list(
-            page_df.loc[page_df["File"] == doc_df["File"][ind]][column]
+            page_df.loc[page_df["doc"] == doc_df["File"][ind]][column]
         ):
             try:
                 for entity in entityList:
@@ -108,7 +108,7 @@ def set_text_doc(page_df, doc_df, column):
     for ind in doc_df.index:
         text = ""
         for textVal in list(
-            page_df.loc[page_df["File"] == doc_df["File"][ind]][column]
+            page_df.loc[page_df["doc"] == doc_df["File"][ind]][column]
         ):
             text += textVal
         doc_df.at[ind, column] = text
@@ -158,7 +158,7 @@ def doc_level_data(extracted_df):
 
     doc_data = pd.DataFrame(columns=columns)
 
-    doc_data["File"] = list(set(extracted_df.File))
+    doc_data["File"] = list(set(extracted_df.doc))
 
     doc_data
     for column in doc_data.columns:
@@ -259,15 +259,11 @@ def get_page_num(page_df, doc_df):
 
 
 def set_doc_data(extracted_info_df):
-    columns = extracted_info_df.columns.tolist()
-    columns.remove("Path")
-    columns.remove("Label")
-    columns.remove("FileSplit")
-    columns.remove("DocClass")
+    columns = ["CaseNumber", "Name", "Date", "File"]
 
     doc_data = pd.DataFrame(columns=columns)
 
-    doc_data["File"] = list(set(extracted_info_df.File))
+    doc_data["File"] = list(set(extracted_info_df.doc))
     for column in doc_data.columns:
         if column not in ["File", "OrignalFile"]:
             set_entities_doc(extracted_info_df, doc_data, column)
@@ -363,7 +359,7 @@ def output_organized_cases(caseList):
 
 
 def split_by_label(extracted_info_df, label="form"):
-    files = set(extracted_info_df.File.tolist())
+    files = set(extracted_info_df.doc.tolist())
     extracted_info_df["FileSplit"] = np.nan
     for file in files:
         i = 0

@@ -2,11 +2,15 @@
 beautifulsoup4==4.11.1
 datasets==2.4.0
 decorator 
+faiss-cpu 
+faiss-gpu 
 httplib2 
 huggingface-hub==0.9.1
+Levenshtein
 matplotlib==3.6.1
 matplotlib-inline 
 numpy==1.23.4
+nltk
 opencv-python==4.7.0.72
 pandas==1.4.3
 pdf2image==1.16.3
@@ -14,7 +18,7 @@ pdf2image==1.16.3
 Pillow==9.3.0
 
 PyPDF2==3.0.1
-
+pytesseract
 regex==2022.9.13
 
 rsa 
@@ -22,6 +26,9 @@ sacrebleu==2.3.1
 selenium==4.5.0
 
 sentencepiece==0.1.97
+sklearn
+scikit-learn
+spacy
 
 tensorboard==2.10.1
 tensorboard-data-server==0.6.1
@@ -29,6 +36,7 @@ tensorboard-plugin-wit==1.8.1
 
 tokenizers==0.12.1
 torch==1.12.1
+torchvision
 
 tqdm==4.64.1
 
